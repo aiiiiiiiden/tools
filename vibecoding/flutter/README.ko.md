@@ -2,12 +2,16 @@
 
 macOS용 Flutter 개발 환경 자동 설치 및 검증 스크립트입니다.
 
+> **⚠️ 중요: macOS 전용**
+> 이 스크립트들은 **macOS 전용**으로 설계되었으며, 수정 없이는 Windows나 Linux에서 작동하지 않습니다.
+> Windows 사용자는 [WSL2](#windows-사용자)를 사용하거나 수동으로 Flutter를 설치하세요.
+
 ## 개요
 
 이 디렉토리에는 Flutter 개발 환경 설정을 간소화하는 두 가지 주요 스크립트가 포함되어 있습니다:
 
-- **`install.sh`** - Flutter SDK 및 관련 도구 자동 설치 스크립트
-- **`doctor.sh`** - 설정을 검증하는 종합 확인 스크립트
+- **`install.sh`** - Flutter SDK 및 관련 도구 자동 설치 스크립트 (macOS 전용)
+- **`doctor.sh`** - 설정을 검증하는 종합 확인 스크립트 (macOS 전용)
 
 ## 설치되는 도구
 
@@ -330,9 +334,43 @@ npm uninstall -g firebase-tools @google/gemini-cli
 
 ## 시스템 요구사항
 
-- **OS**: macOS (스크립트는 macOS용으로 설계됨)
+- **OS**: macOS 전용 (스크립트가 Homebrew 및 macOS 전용 도구 사용)
 - **디스크 공간**: Flutter SDK 및 도구용 약 2GB
 - **인터넷**: 다운로드에 필요
+
+## Windows 사용자
+
+이 스크립트들은 Windows에서 **기본적으로 호환되지 않습니다**. Windows를 사용하는 경우 다음 옵션이 있습니다:
+
+### 옵션 1: WSL2 사용 (권장)
+
+Windows Subsystem for Linux 2를 사용하면 Linux 환경에서 이 스크립트를 실행할 수 있습니다:
+
+```powershell
+# PowerShell(관리자 권한)에서 WSL2 설치
+wsl --install
+
+# WSL2를 실행하고 프로젝트로 이동
+wsl
+cd /mnt/c/Users/사용자이름/경로/vibecoding/flutter
+chmod +x install.sh doctor.sh
+./install.sh
+```
+
+### 옵션 2: 수동 설치
+
+Flutter 공식 Windows 설치 가이드를 따르세요:
+- https://docs.flutter.dev/get-started/install/windows
+
+### 옵션 3: Git Bash 사용 (권장하지 않음)
+
+Git Bash는 Homebrew를 지원하지 않아 이 스크립트 실행 시 오류가 발생합니다.
+
+## Linux 사용자
+
+이 스크립트는 Homebrew를 사용하며 Linux에서도 작동할 수 있지만, 일부 수정이 필요할 수 있습니다:
+- 다른 셸을 사용하는 경우 셸 설정 경로 변경 필요
+- Linux용 Homebrew가 설치되어 있어야 함: https://brew.sh
 
 ## 라이선스
 

@@ -2,12 +2,16 @@
 
 Automated setup and verification scripts for Flutter development environment on macOS.
 
+> **⚠️ IMPORTANT: macOS Only**
+> These scripts are designed exclusively for **macOS** and will not work on Windows or Linux without modification.
+> Windows users should use [WSL2](#windows-users) or install Flutter manually.
+
 ## Overview
 
 This directory contains two main scripts to streamline your Flutter development environment setup:
 
-- **`install.sh`** - Automated installation script for Flutter SDK and related tools
-- **`doctor.sh`** - Comprehensive verification script to validate your setup
+- **`install.sh`** - Automated installation script for Flutter SDK and related tools (macOS only)
+- **`doctor.sh`** - Comprehensive verification script to validate your setup (macOS only)
 
 ## What Gets Installed
 
@@ -330,9 +334,43 @@ npm uninstall -g firebase-tools @google/gemini-cli
 
 ## System Requirements
 
-- **OS**: macOS (scripts are designed for macOS)
+- **OS**: macOS only (scripts use Homebrew and macOS-specific tools)
 - **Disk Space**: ~2GB for Flutter SDK and tools
 - **Internet**: Required for downloads
+
+## Windows Users
+
+These scripts are **not compatible with Windows** natively. If you're on Windows, you have these options:
+
+### Option 1: Use WSL2 (Recommended)
+
+Windows Subsystem for Linux 2 allows you to run these scripts in a Linux environment:
+
+```powershell
+# Install WSL2 in PowerShell (Admin)
+wsl --install
+
+# Launch WSL2 and navigate to your project
+wsl
+cd /mnt/c/Users/YourUsername/path/to/vibecoding/flutter
+chmod +x install.sh doctor.sh
+./install.sh
+```
+
+### Option 2: Manual Installation
+
+Follow Flutter's official Windows installation guide:
+- https://docs.flutter.dev/get-started/install/windows
+
+### Option 3: Use Git Bash (Not Recommended)
+
+Git Bash lacks Homebrew support and will encounter errors with these scripts.
+
+## Linux Users
+
+These scripts use Homebrew which can work on Linux, but some modifications may be needed:
+- Change shell config paths if using different shells
+- Ensure Homebrew for Linux is installed: https://brew.sh
 
 ## License
 
