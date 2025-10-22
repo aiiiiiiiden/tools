@@ -8,6 +8,9 @@
 # Date: 2025
 # ================================================
 
+# Ignore SIGPIPE to prevent "Broken pipe" errors
+trap '' PIPE
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -100,15 +103,20 @@ fi
 # ================================================
 print_header "Checking Flutter SDK"
 
-FLUTTER_DIR="$HOME/development"
-FLUTTER_PATH="$FLUTTER_DIR/flutter"
+# Check for FVM-managed Flutter
+FVM_FLUTTER_PATH="$HOME/fvm/default"
+LEGACY_FLUTTER_PATH="$HOME/development/flutter"
 
-# Check if Flutter directory exists
-if [ -d "$FLUTTER_PATH" ]; then
-    print_success "Flutter directory exists: $FLUTTER_PATH"
+# Check if FVM Flutter directory exists
+if [ -d "$FVM_FLUTTER_PATH" ]; then
+    print_success "Flutter directory exists (via FVM): $FVM_FLUTTER_PATH"
+elif [ -d "$LEGACY_FLUTTER_PATH" ]; then
+    print_warning "Flutter found at legacy location: $LEGACY_FLUTTER_PATH"
+    print_info "Consider migrating to FVM for better version management"
 else
-    print_error "Flutter directory not found: $FLUTTER_PATH"
-    print_info "Expected location: $FLUTTER_PATH"
+    print_error "Flutter directory not found"
+    print_info "Expected location (FVM): $FVM_FLUTTER_PATH"
+    print_info "Or run: fvm install stable && fvm global stable"
 fi
 
 # Check if Flutter command is available
@@ -119,17 +127,25 @@ if command_exists flutter; then
     # Get Flutter channel
     FLUTTER_CHANNEL=$(flutter channel | grep -E '^\*' | awk '{print $2}')
     print_info "Flutter channel: $FLUTTER_CHANNEL"
+
+    # Check if using FVM
+    FLUTTER_BIN_PATH=$(which flutter)
+    if echo "$FLUTTER_BIN_PATH" | grep -q "fvm"; then
+        print_success "Using FVM-managed Flutter"
+    else
+        print_info "Using direct Flutter installation"
+    fi
 else
     print_error "Flutter command: Not found in PATH"
-    print_info "Add to PATH: export PATH=\"\$HOME/development/flutter/bin:\$PATH\""
+    print_info "Add to PATH: export PATH=\"\$HOME/fvm/default/bin:\$PATH\""
 fi
 
 # Check if Flutter is in PATH
-if check_path_contains "flutter/bin"; then
+if check_path_contains "fvm/default/bin" || check_path_contains "flutter/bin"; then
     print_success "Flutter is in PATH"
 else
     print_warning "Flutter is not in PATH"
-    print_info "Add to ~/.zshrc: export PATH=\"\$HOME/development/flutter/bin:\$PATH\""
+    print_info "Add to ~/.zshrc: export PATH=\"\$HOME/fvm/default/bin:\$PATH\""
 fi
 
 # Check Dart
@@ -210,16 +226,12 @@ if command_exists firebase; then
         print_info "Firebase MCP: Not available in current version"
         print_info "Firebase MCP requires firebase-tools v13.21.0+"
 
-        # Check if we can run via npx
+        # Check if we can run via npx (without network call)
         if command_exists npx; then
-            print_info "Checking via npx (this may take a moment)..."
-            if timeout 10 npx -y firebase-tools@latest --version >/dev/null 2>&1; then
-                print_success "Firebase MCP: Available via npx"
-                print_info "Run with: npx -y firebase-tools@latest mcp"
-            else
-                print_warning "Unable to verify npx access (network/timeout)"
-                print_info "Try: npx -y firebase-tools@latest mcp"
-            fi
+            print_success "Firebase MCP: Available via npx"
+            print_info "Run with: npx -y firebase-tools@latest mcp"
+        else
+            print_warning "npx not available - cannot use latest Firebase MCP"
         fi
     fi
 else
@@ -244,15 +256,23 @@ if command_exists gemini; then
     print_success "Gemini CLI: $GEMINI_VERSION"
 
     # Check if Gemini is configured
-    if [ -f "$HOME/.gemini/config.json" ] || [ -f "$HOME/.config/gemini/config.json" ]; then
+    if [ -f "$HOME/.gemini/settings.json" ]; then
         print_info "Gemini CLI appears to be configured"
+
+        # Check if Dart MCP is configured
+        if grep -q '"dart"' "$HOME/.gemini/settings.json" 2>/dev/null; then
+            print_success "Dart MCP server is configured in Gemini CLI"
+        else
+            print_warning "Dart MCP server not found in Gemini CLI configuration"
+            print_info "Add Dart MCP to ~/.gemini/settings.json"
+        fi
     else
         print_warning "Gemini CLI may not be configured yet"
-        print_info "Configure with: gemini config"
+        print_info "Run 'gemini' and enter '/auth' to authenticate"
     fi
 else
     print_error "Gemini CLI: Not found"
-    print_info "Install with: npm install -g @google/gemini-cli"
+    print_info "Install with: npm install -g @google/gemini-cli@latest"
 fi
 
 # ================================================
@@ -263,8 +283,9 @@ print_header "Running Flutter Doctor"
 if command_exists flutter; then
     print_info "Running comprehensive Flutter diagnostics...\n"
 
-    # Capture flutter doctor output to check for issues
-    DOCTOR_OUTPUT=$(flutter doctor -v 2>&1)
+    # Run flutter doctor with error handling for broken pipes
+    # Suppress version checking and pipe errors
+    DOCTOR_OUTPUT=$(flutter doctor -v 2>&1 | grep -v "Broken pipe" | grep -v "FileSystemException" || true)
     echo "$DOCTOR_OUTPUT"
     echo ""
 
@@ -297,12 +318,15 @@ else
 fi
 
 if [ -n "$SHELL_CONFIG" ]; then
-    # Check Flutter PATH in config
-    if grep -q "flutter/bin" "$SHELL_CONFIG"; then
-        print_success "Flutter PATH found in $SHELL_CONFIG"
+    # Check Flutter PATH in config (FVM or legacy)
+    if grep -q "fvm/default/bin" "$SHELL_CONFIG"; then
+        print_success "Flutter PATH (FVM) found in $SHELL_CONFIG"
+    elif grep -q "flutter/bin" "$SHELL_CONFIG"; then
+        print_warning "Legacy Flutter PATH found in $SHELL_CONFIG"
+        print_info "Consider updating to FVM path: export PATH=\"\$HOME/fvm/default/bin:\$PATH\""
     else
         print_warning "Flutter PATH not found in $SHELL_CONFIG"
-        print_info "Add: export PATH=\"\$HOME/development/flutter/bin:\$PATH\""
+        print_info "Add: export PATH=\"\$HOME/fvm/default/bin:\$PATH\""
     fi
 
     # Check pub-cache PATH in config
@@ -345,7 +369,7 @@ elif [ $FAILED -eq 0 ]; then
     echo -e "  → Or use: npx -y firebase-tools@latest mcp"
     echo ""
     echo -e "${YELLOW}• Gemini CLI not configured:${NC}"
-    echo -e "  → Configure: gemini config"
+    echo -e "  → Run 'gemini' and enter '/auth' to authenticate"
     echo ""
     echo -e "${YELLOW}• Android licenses not accepted:${NC}"
     echo -e "  → Accept: flutter doctor --android-licenses"

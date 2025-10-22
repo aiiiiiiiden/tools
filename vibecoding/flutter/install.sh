@@ -79,91 +79,6 @@ else
 fi
 
 # ================================================
-# Install Flutter SDK
-# ================================================
-print_header "Installing Flutter SDK"
-
-FLUTTER_DIR="$HOME/development"
-FLUTTER_PATH="$FLUTTER_DIR/flutter"
-
-if [ -d "$FLUTTER_PATH" ]; then
-    print_warning "Flutter directory already exists at $FLUTTER_PATH"
-    read -p "Do you want to reinstall? (y/n): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        rm -rf "$FLUTTER_PATH"
-        print_info "Removed existing Flutter installation"
-    else
-        print_info "Skipping Flutter installation"
-        SKIP_FLUTTER=true
-    fi
-fi
-
-if [ "$SKIP_FLUTTER" != true ]; then
-    # Create development directory
-    mkdir -p "$FLUTTER_DIR"
-    cd "$FLUTTER_DIR"
-
-    # Clone Flutter repository (stable channel)
-    print_info "Cloning Flutter SDK (stable channel)..."
-    git clone https://github.com/flutter/flutter.git -b stable
-
-    # Add Flutter to PATH temporarily for this script
-    export PATH="$FLUTTER_PATH/bin:$PATH"
-
-    print_success "Flutter SDK cloned successfully"
-fi
-
-# Run flutter precache
-if [ "$SKIP_FLUTTER" != true ]; then
-    print_info "Running flutter precache (this may take a few minutes)..."
-    if "$FLUTTER_PATH/bin/flutter" precache 2>&1 | grep -v "Building flutter tool"; then
-        print_success "Flutter precache completed"
-    else
-        print_warning "Flutter precache may have encountered issues, but continuing..."
-    fi
-fi
-
-# Run flutter doctor
-print_info "Running flutter doctor for initial diagnostics..."
-"$FLUTTER_PATH/bin/flutter" doctor 2>&1
-
-print_success "Flutter SDK installation completed"
-print_info "Note: Some Flutter doctor warnings are normal and can be resolved in Next Steps"
-
-# ================================================
-# Configure Flutter PATH
-# ================================================
-print_header "Configuring Environment Variables"
-
-SHELL_CONFIG=""
-if [ -f "$HOME/.zshrc" ]; then
-    SHELL_CONFIG="$HOME/.zshrc"
-elif [ -f "$HOME/.bashrc" ]; then
-    SHELL_CONFIG="$HOME/.bashrc"
-fi
-
-if [ -n "$SHELL_CONFIG" ]; then
-    # Check if Flutter is already in PATH
-    if ! grep -q "flutter/bin" "$SHELL_CONFIG"; then
-        echo "" >> "$SHELL_CONFIG"
-        echo "# Flutter SDK" >> "$SHELL_CONFIG"
-        echo "export PATH=\"\$HOME/development/flutter/bin:\$PATH\"" >> "$SHELL_CONFIG"
-        print_success "Added Flutter to PATH in $SHELL_CONFIG"
-    else
-        print_info "Flutter is already in PATH"
-    fi
-
-    # Add Dart pub global packages to PATH
-    if ! grep -q ".pub-cache/bin" "$SHELL_CONFIG"; then
-        echo "export PATH=\"\$HOME/.pub-cache/bin:\$PATH\"" >> "$SHELL_CONFIG"
-        print_success "Added Dart pub global packages to PATH"
-    else
-        print_info "Dart pub global packages already in PATH"
-    fi
-fi
-
-# ================================================
 # Install FVM (Flutter Version Management)
 # ================================================
 print_header "Installing FVM (Flutter Version Management)"
@@ -182,6 +97,93 @@ else
 
     print_success "FVM installed successfully"
     print_info "FVM version: $(fvm --version)"
+fi
+
+# ================================================
+# Install Flutter SDK via FVM
+# ================================================
+print_header "Installing Flutter SDK via FVM"
+
+# Check if Flutter is already installed via FVM
+if fvm list 2>/dev/null | grep -q "stable"; then
+    print_warning "Flutter stable version is already installed via FVM"
+    read -p "Do you want to reinstall? (y/n): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        print_info "Removing existing Flutter installation..."
+        fvm remove stable || true
+        SKIP_FLUTTER=false
+    else
+        print_info "Skipping Flutter installation"
+        SKIP_FLUTTER=true
+    fi
+else
+    SKIP_FLUTTER=false
+fi
+
+if [ "$SKIP_FLUTTER" != true ]; then
+    # Install latest stable Flutter version via FVM
+    print_info "Installing latest stable Flutter version via FVM (this may take a few minutes)..."
+    fvm install stable
+
+    # Set stable as global default
+    print_info "Setting stable version as global default..."
+    fvm global stable
+
+    print_success "Flutter SDK installed successfully via FVM"
+fi
+
+# Add FVM's global Flutter to PATH temporarily for this script
+FVM_FLUTTER_PATH="$HOME/fvm/default/bin"
+export PATH="$FVM_FLUTTER_PATH:$PATH"
+
+# Run flutter precache
+if [ "$SKIP_FLUTTER" != true ]; then
+    print_info "Running flutter precache (this may take a few minutes)..."
+    if fvm flutter precache 2>&1 | grep -v "Building flutter tool"; then
+        print_success "Flutter precache completed"
+    else
+        print_warning "Flutter precache may have encountered issues, but continuing..."
+    fi
+fi
+
+# Run flutter doctor
+print_info "Running flutter doctor for initial diagnostics..."
+fvm flutter doctor 2>&1
+
+print_success "Flutter SDK installation completed"
+print_info "Note: Some Flutter doctor warnings are normal and can be resolved in Next Steps"
+
+# ================================================
+# Configure Flutter PATH
+# ================================================
+print_header "Configuring Environment Variables"
+
+SHELL_CONFIG=""
+if [ -f "$HOME/.zshrc" ]; then
+    SHELL_CONFIG="$HOME/.zshrc"
+elif [ -f "$HOME/.bashrc" ]; then
+    SHELL_CONFIG="$HOME/.bashrc"
+fi
+
+if [ -n "$SHELL_CONFIG" ]; then
+    # Check if FVM's Flutter is already in PATH
+    if ! grep -q "fvm/default/bin" "$SHELL_CONFIG"; then
+        echo "" >> "$SHELL_CONFIG"
+        echo "# Flutter SDK via FVM" >> "$SHELL_CONFIG"
+        echo "export PATH=\"\$HOME/fvm/default/bin:\$PATH\"" >> "$SHELL_CONFIG"
+        print_success "Added FVM's Flutter to PATH in $SHELL_CONFIG"
+    else
+        print_info "FVM's Flutter is already in PATH"
+    fi
+
+    # Add Dart pub global packages to PATH
+    if ! grep -q ".pub-cache/bin" "$SHELL_CONFIG"; then
+        echo "export PATH=\"\$HOME/.pub-cache/bin:\$PATH\"" >> "$SHELL_CONFIG"
+        print_success "Added Dart pub global packages to PATH"
+    else
+        print_info "Dart pub global packages already in PATH"
+    fi
 fi
 
 # ================================================
@@ -245,15 +247,15 @@ if command_exists gemini; then
     print_info "Gemini CLI version: $GEMINI_VERSION"
 
     # Check if configured
-    if [ -f "$HOME/.gemini/config.json" ] || [ -f "$HOME/.config/gemini/config.json" ]; then
+    if [ -f "$HOME/.gemini/settings.json" ]; then
         print_success "Gemini CLI appears to be configured"
     else
         print_warning "Gemini CLI may not be configured yet"
-        print_info "Configure with: gemini config"
+        print_info "Run 'gemini' and enter '/auth' to authenticate"
     fi
 else
     print_info "Installing Gemini CLI via npm..."
-    npm install -g @google/gemini-cli
+    npm install -g @google/gemini-cli@latest
 
     if [ $? -eq 0 ]; then
         print_success "Gemini CLI installed successfully"
@@ -262,11 +264,71 @@ else
         if command_exists gemini; then
             GEMINI_VERSION=$(gemini --version 2>/dev/null || echo 'Installed')
             print_info "Gemini CLI version: $GEMINI_VERSION"
-            print_warning "Remember to configure Gemini CLI after installation:"
-            print_info "Run: gemini config"
+            print_warning "Remember to authenticate Gemini CLI after installation:"
+            print_info "Run 'gemini' and enter '/auth'"
         fi
     else
         print_error "Failed to install Gemini CLI"
+    fi
+fi
+
+# ================================================
+# Configure Dart MCP for Gemini CLI
+# ================================================
+print_header "Configuring Dart MCP for Gemini CLI"
+
+if command_exists gemini && command_exists dart; then
+    DART_VERSION=$(dart --version 2>&1 | grep -oE '[0-9]+\.[0-9]+' | head -1)
+    DART_MAJOR=$(echo "$DART_VERSION" | cut -d. -f1)
+    DART_MINOR=$(echo "$DART_VERSION" | cut -d. -f2)
+
+    # Check if Dart 3.9 or later
+    if [ "$DART_MAJOR" -gt 3 ] || ([ "$DART_MAJOR" -eq 3 ] && [ "$DART_MINOR" -ge 9 ]); then
+        print_info "Dart $DART_VERSION supports MCP server"
+
+        # Create .gemini directory if it doesn't exist
+        mkdir -p "$HOME/.gemini"
+
+        SETTINGS_FILE="$HOME/.gemini/settings.json"
+
+        # Check if settings.json exists
+        if [ -f "$SETTINGS_FILE" ]; then
+            # Check if dart MCP is already configured
+            if grep -q '"dart"' "$SETTINGS_FILE" 2>/dev/null; then
+                print_success "Dart MCP already configured in Gemini CLI"
+            else
+                print_info "Adding Dart MCP to existing Gemini CLI configuration..."
+                # Backup existing file
+                cp "$SETTINGS_FILE" "$SETTINGS_FILE.backup"
+
+                # Add dart MCP (this is a simple approach; production code would need proper JSON parsing)
+                print_warning "Please manually add Dart MCP to $SETTINGS_FILE"
+                print_info "See documentation for configuration example"
+            fi
+        else
+            print_info "Creating Gemini CLI configuration with Dart MCP..."
+            cat > "$SETTINGS_FILE" << 'EOF'
+{
+  "mcpServers": {
+    "dart": {
+      "command": "dart",
+      "args": ["mcp-server"]
+    }
+  }
+}
+EOF
+            print_success "Dart MCP configuration created at $SETTINGS_FILE"
+        fi
+    else
+        print_warning "Dart $DART_VERSION does not support MCP server (requires 3.9+)"
+        print_info "Consider upgrading Flutter/Dart to use MCP features"
+    fi
+else
+    if ! command_exists gemini; then
+        print_warning "Gemini CLI not found. Skipping Dart MCP configuration."
+    fi
+    if ! command_exists dart; then
+        print_warning "Dart not found. Skipping Dart MCP configuration."
     fi
 fi
 
@@ -282,7 +344,7 @@ if command_exists gemini; then
     # Users will need to authenticate and configure
     print_info "To install Firebase extension, run:"
     print_info "  gemini extensions install https://github.com/gemini-cli-extensions/firebase/"
-    print_warning "Note: You may need to authenticate Gemini CLI first with 'gemini config'"
+    print_warning "Note: You may need to authenticate Gemini CLI first (run 'gemini' and enter '/auth')"
 else
     print_warning "Gemini CLI not found. Skipping Firebase extension installation."
 fi
@@ -296,12 +358,16 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "✓ Installed components:"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "  1. Flutter SDK         → $FLUTTER_PATH"
-if command_exists flutter; then
-    echo "     Version: $(flutter --version 2>&1 | head -1)"
-fi
+echo "  1. FVM                 → $(command_exists fvm && fvm --version || echo 'Not installed')"
 echo ""
-echo "  2. FVM                 → $(command_exists fvm && fvm --version || echo 'Not installed')"
+echo "  2. Flutter SDK (via FVM) → $HOME/fvm/default"
+if command_exists flutter || [ -f "$HOME/fvm/default/bin/flutter" ]; then
+    if command_exists fvm; then
+        echo "     Version: $(fvm flutter --version 2>&1 | head -1)"
+    elif command_exists flutter; then
+        echo "     Version: $(flutter --version 2>&1 | head -1)"
+    fi
+fi
 echo ""
 echo "  3. Dart MCP Server     → Available via 'dart mcp-server'"
 if command_exists dart; then
@@ -322,10 +388,13 @@ echo "  5. Gemini CLI          → $(command_exists gemini && echo 'Installed' |
 if command_exists gemini; then
     GEMINI_VER=$(gemini --version 2>/dev/null || echo 'Unknown')
     echo "     Version: $GEMINI_VER"
-    if [ -f "$HOME/.gemini/config.json" ] || [ -f "$HOME/.config/gemini/config.json" ]; then
+    if [ -f "$HOME/.gemini/settings.json" ]; then
         echo "     Status: Configured ✓"
+        if grep -q '"dart"' "$HOME/.gemini/settings.json" 2>/dev/null; then
+            echo "     Dart MCP: Configured ✓"
+        fi
     else
-        echo "     Status: Not configured yet (run 'gemini config')"
+        echo "     Status: Not authenticated yet"
     fi
 fi
 echo ""
@@ -343,8 +412,8 @@ echo ""
 echo "3. Accept Android licenses (required for Android development):"
 echo "   flutter doctor --android-licenses"
 echo ""
-echo "4. Configure Gemini CLI (if using):"
-echo "   gemini config"
+echo "4. Authenticate Gemini CLI (if using):"
+echo "   Run 'gemini' and enter '/auth'"
 echo ""
 echo "5. Install Firebase extension for Gemini CLI (optional):"
 echo "   gemini extensions install https://github.com/gemini-cli-extensions/firebase/"
